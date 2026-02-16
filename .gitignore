@@ -1,0 +1,24 @@
+﻿# dependencies
+**/node_modules
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files
+.env
+.env.*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+
+# terraform
+**/.terraform
+*.tfstate
+*.tfstate.*
+crash.log
+
+# docker
+**/*.log
