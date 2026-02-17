@@ -1,4 +1,15 @@
 ﻿services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cpq
+      POSTGRES_PASSWORD: cpqpassword
+      POSTGRES_DB: cpq
+    ports:
+      - "5432:5432"
+    volumes:
+      - cpq_db:/var/lib/postgresql/data
+
   api:
     build:
       context: ./apps/api
@@ -6,3 +17,9 @@
       - "3001:3001"
     environment:
       - PORT=3001
+      - DATABASE_URL=postgresql://cpq:cpqpassword@db:5432/cpq
+    depends_on:
+      - db
+
+volumes:
+  cpq_db:
