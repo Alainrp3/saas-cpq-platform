@@ -2,7 +2,13 @@
 
 ## Overview
 
-This project is a cloud-native SaaS CPQ (Configure, Price, Quote) platform built using modern containerized architecture.
+I am building this SaaS CPQ platform to model real-world pricing challenges in service-based industries.
+
+With 15+ years in the environmental services industry working on pricing, margin analysis, and complex quoting systems, I’ve seen firsthand how many organizations still rely on spreadsheets and fragmented tools.
+
+This platform is my attempt to design a modern, cloud-native solution that combines structured pricing logic, flexibility for varied job formats, and the speed required for high-volume quoting environments.
+
+The long-term goal is to deploy this as a fully containerized, infrastructure-as-code-driven SaaS platform on AWS, demonstrating both domain expertise in pricing strategy and modern cloud engineering practices.
 
 The objective is to:
 
