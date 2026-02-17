@@ -22,11 +22,17 @@ The objective is to:
 
 ## Current Architecture
 
-Express API (Node.js)
-↓
-PostgreSQL (Docker)
-↓
-Docker Compose orchestration
+Docker Compose orchestrates a multi-container backend:
+
+Browser
+   ↓
+API Container (Node.js / Express)
+   ↓
+PostgreSQL Container
+   ↓
+Persistent Docker Volume
+
+Services communicate over an internal Docker network.
 
 ---
 
@@ -38,6 +44,16 @@ Docker Compose orchestration
 - Git / GitHub
 - AWS (planned)
 - Terraform (planned)
+
+---
+
+## Recent Milestones
+
+- Containerized Express API using Docker
+- Implemented multi-container architecture with Docker Compose
+- Integrated PostgreSQL database container
+- Implemented database connectivity health endpoint
+
 
 ---
 
