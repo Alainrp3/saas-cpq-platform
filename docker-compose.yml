@@ -1,23 +1,26 @@
-﻿services:
+﻿version: "3.9"
+
+services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: cpq
-      POSTGRES_PASSWORD: cpqpassword
-      POSTGRES_DB: cpq
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - cpq_db:/var/lib/postgresql/data
       - ./infra/db:/docker-entrypoint-initdb.d
+
   api:
-    build:
-      context: ./apps/api
+    build: ./apps/api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
     ports:
       - "3001:3001"
-    environment:
-      - PORT=3001
-      - DATABASE_URL=postgresql://cpq:cpqpassword@db:5432/cpq
     depends_on:
       - db
 
