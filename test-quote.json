@@ -1,0 +1,9 @@
+
+{
+  "customer_id": "dc16a836-8f55-479a-81c1-f0292a215285",
+  "status": "draft",
+  "line_items": [
+    { "description": "2 Techs - 8 hours", "qty": 16, "unit_price": 125 },
+    { "description": "Vac truck day rate", "qty": 1, "unit_price": 1850 }
+  ]
+}

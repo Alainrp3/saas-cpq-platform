@@ -9,7 +9,7 @@
       - "5432:5432"
     volumes:
       - cpq_db:/var/lib/postgresql/data
-
+      - ./infra/db:/docker-entrypoint-initdb.d
   api:
     build:
       context: ./apps/api
