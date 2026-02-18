@@ -96,3 +96,15 @@ docs/           → Documentation
 - Deploy to AWS with Terraform
 - Implement CI/CD
 - Integrate AI pricing logic
+
+---
+
+## Implemented Features (Current State)
+
+- Customer creation endpoint
+- Quote creation with transactional line item inserts
+- Subtotal calculation logic
+- GET quote with associated line items
+- PostgreSQL schema initialized via Docker volume
+- Persistent containerized development environment
+
