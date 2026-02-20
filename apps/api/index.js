@@ -31,6 +31,40 @@ app.get("/db-health", async (req, res) => {
   }
 });
 
+// List quotes for a customer
+
+app.get("/customers/:id/quotes", async (req, res) => {
+  const customerId = Number(req.params.id);
+
+  if (!Number.isInteger(customerId)) {
+    return res.status(400).json({ ok: false, error: "Invalid customer id" });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT
+         id,
+         customer_id,
+         job_name,
+         currency,
+         tax_rate,
+         discount,
+         total,
+         created_at
+       FROM quotes
+       WHERE customer_id = $1
+       ORDER BY created_at DESC`,
+      [customerId]
+    );
+
+    res.json({ ok: true, customer_id: customerId, quotes: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+
 // Create a customer
 app.post("/customers", async (req, res) => {
   const { name } = req.body || {};
@@ -52,77 +86,86 @@ app.post("/customers", async (req, res) => {
   }
 });
 
-// Create a quote with line items
+// Create a quote with line items (CPQ v0: cost/sell)
 app.post("/quotes", async (req, res) => {
-  const { customer_id, status, line_items } = req.body || {};
+  const { customer_id, job_name, currency, tax_rate, discount, line_items } = req.body || {};
 
-  if (!customer_id) {
-    return res
-      .status(400)
-      .json({ ok: false, error: "customer_id is required" });
+  const custId = Number(customer_id);
+  if (!Number.isInteger(custId)) {
+    return res.status(400).json({ ok: false, error: "customer_id must be an integer" });
+  }
+  if (!job_name || typeof job_name !== "string") {
+    return res.status(400).json({ ok: false, error: "job_name is required (string)" });
   }
   if (!Array.isArray(line_items) || line_items.length === 0) {
-    return res
-      .status(400)
-      .json({ ok: false, error: "line_items must be a non-empty array" });
+    return res.status(400).json({ ok: false, error: "line_items must be a non-empty array" });
   }
 
-  // Basic validation + totals
+  const curr = (currency && String(currency).trim().toUpperCase()) || "USD";
+  const tr = Number(tax_rate ?? 0);
+  const disc = Number(discount ?? 0);
+
+  if (!Number.isFinite(tr) || tr < 0) {
+    return res.status(400).json({ ok: false, error: "tax_rate must be a number >= 0" });
+  }
+  if (!Number.isFinite(disc) || disc < 0) {
+    return res.status(400).json({ ok: false, error: "discount must be a number >= 0" });
+  }
+
   let normalized;
   try {
     normalized = line_items.map((li, idx) => {
+      const type = String(li.type || "").trim().toLowerCase();
+      const uom = String(li.uom || "").trim().toUpperCase();
       const description = String(li.description || "").trim();
       const qty = Number(li.qty ?? 1);
-      const unit_price = Number(li.unit_price ?? 0);
+      const cost = Number(li.cost ?? 0);
+      const sell = Number(li.sell ?? 0);
 
-      if (!description)
-        throw new Error(`line_items[${idx}].description is required`);
-      if (!Number.isFinite(qty) || qty <= 0)
-        throw new Error(`line_items[${idx}].qty must be > 0`);
-      if (!Number.isFinite(unit_price) || unit_price < 0)
-        throw new Error(`line_items[${idx}].unit_price must be >= 0`);
+      if (!["labor", "equipment", "material"].includes(type)) {
+        throw new Error(`line_items[${idx}].type must be labor|equipment|material`);
+      }
+      if (!uom) throw new Error(`line_items[${idx}].uom is required`);
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error(`line_items[${idx}].qty must be > 0`);
+      if (!Number.isFinite(cost) || cost < 0) throw new Error(`line_items[${idx}].cost must be >= 0`);
+      if (!Number.isFinite(sell) || sell < 0) throw new Error(`line_items[${idx}].sell must be >= 0`);
 
-      const line_total = Math.round(qty * unit_price * 100) / 100;
-      return { description, qty, unit_price, line_total };
+      return { type, uom, description, qty, cost, sell };
     });
   } catch (err) {
     return res.status(400).json({ ok: false, error: err.message });
   }
 
-  const subtotal = Math.round(
-    normalized.reduce((sum, li) => sum + li.line_total, 0) * 100
-  ) / 100;
-
-  const quoteStatus = (status && String(status).trim()) || "draft";
+  // totals (simple v0)
+  const subtotal = normalized.reduce((sum, li) => sum + li.sell * li.qty, 0);
+  const taxed = subtotal * (1 + tr);
+  const total = Math.round((taxed - disc) * 100) / 100;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // Ensure customer exists
-    const cust = await client.query("SELECT id FROM customers WHERE id = $1", [
-      customer_id,
-    ]);
+    const cust = await client.query("SELECT id FROM customers WHERE id = $1", [custId]);
     if (cust.rowCount === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ ok: false, error: "customer_id not found" });
     }
 
-    // Create quote
     const quoteResult = await client.query(
-      "INSERT INTO quotes (customer_id, status, subtotal) VALUES ($1, $2, $3) RETURNING id, customer_id, status, subtotal, created_at",
-      [customer_id, quoteStatus, subtotal]
+      `INSERT INTO quotes (customer_id, job_name, currency, tax_rate, discount, total)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, customer_id, job_name, currency, tax_rate, discount, total, created_at`,
+      [custId, job_name.trim(), curr, tr, disc, total]
     );
     const quote = quoteResult.rows[0];
 
-    // Insert line items
     const insertedItems = [];
     for (const li of normalized) {
       const itemRes = await client.query(
-        `INSERT INTO quote_line_items (quote_id, description, qty, unit_price, line_total)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, quote_id, description, qty, unit_price, line_total`,
-        [quote.id, li.description, li.qty, li.unit_price, li.line_total]
+        `INSERT INTO quote_line_items (quote_id, type, description, uom, qty, cost, sell)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, quote_id, type, description, uom, qty, cost, sell`,
+        [quote.id, li.type, li.description, li.uom, li.qty, li.cost, li.sell]
       );
       insertedItems.push(itemRes.rows[0]);
     }
@@ -140,22 +183,24 @@ app.post("/quotes", async (req, res) => {
 
 // Get a quote with its line items
 app.get("/quotes/:id", async (req, res) => {
-  const { id } = req.params;
+  const quoteId = Number(req.params.id);
+  if (!Number.isInteger(quoteId)) {
+    return res.status(400).json({ ok: false, error: "Invalid quote id" });
+  }
 
   try {
     const quoteRes = await pool.query(
-      "SELECT id, customer_id, status, subtotal, created_at FROM quotes WHERE id = $1",
-      [id]
+      "SELECT id, customer_id, job_name, currency, tax_rate, discount, total, created_at FROM quotes WHERE id = $1",
+      [quoteId]
     );
 
     if (quoteRes.rowCount === 0) {
       return res.status(404).json({ ok: false, error: "quote not found" });
     }
 
-    // ✅ ORDER BY id (quote_line_items doesn't have created_at)
     const itemsRes = await pool.query(
-      "SELECT id, quote_id, description, qty, unit_price, line_total FROM quote_line_items WHERE quote_id = $1 ORDER BY id",
-      [id]
+      "SELECT id, quote_id, type, description, uom, qty, cost, sell FROM quote_line_items WHERE quote_id = $1 ORDER BY id",
+      [quoteId]
     );
 
     res.json({ ok: true, quote: quoteRes.rows[0], line_items: itemsRes.rows });

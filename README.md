@@ -86,6 +86,37 @@ docs/           → Documentation
 
 ---
 
+
+## Development Setup
+
+1. Copy `.env.example` to `.env`
+2. Run:
+
+   docker compose down -v
+   docker compose up --build
+
+The database is initialized automatically with:
+- A test customer (id = 1)
+- A sample quote
+- Sample labor + equipment line items
+
+This ensures the environment is reproducible for anyone cloning the repository.
+
+---
+
+## Architecture Overview
+
+- Node.js + Express API
+- PostgreSQL (Dockerized)
+- CPQ data model:
+  - Customers
+  - Quotes
+  - Quote Line Items (labor, equipment, material)
+- Deterministic seed data for development
+- Docker-based reproducible environment
+
+---
+
 ## Roadmap
 
 - Add PostgreSQL schema
