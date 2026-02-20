@@ -10,6 +10,9 @@ yarn-error.log*
 .env
 .env.*
 
+# Keep only exameple in git
+!.env.example
+
 # OS/editor
 .DS_Store
 Thumbs.db
